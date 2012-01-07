@@ -1,0 +1,51 @@
+#!/usr/bin/env perl
+
+use User::pwent;
+use Template;
+use Net::SSH::AuthorizedKey;
+use Getopt::Long;
+
+my $u = shift;
+
+sub process_user {
+    my ($user) = @_
+
+    $pw = getpwnam($u) || die "No user: $u";
+
+    use Data::Dumper;
+    #print Dumper($pw);
+
+    my $tt = Template->new({
+        INCLUDE_PATH => './',
+        INTERPOLATE  => 1,
+    }) || die "$Template::ERROR\n";
+
+    my $vars = {
+        name    => $pw->name,
+        passwd  => $pw->passwd,
+        uid     => $pw->uid,
+        gid     => $pw->gid,
+        gecos   => $pw->gecos,
+        dir     => $pw->dir,
+        shell   => $pw->shell,
+    };
+    $tt->process('user.tt', $vars) || die $tt->error(), "\n";
+
+    open(my $fh, $pw->dir . "/.ssh/authorized_keys") or die "can't open file: $!";
+    foreach my $line (<$fh>) {
+        my $key = Net::SSH::AuthorizedKey->parse( $line );
+        use Data::Dumper;
+        # print Dumper($key);
+        my $comment = $key->comment;
+        chomp $comment;
+        $comment  =~ tr/\s/_/;
+        my $vars = {
+            key => $key->key,
+            type => $key->encryption,
+            username => 'jhoblitt',
+            comment => $comment,
+        };
+        $tt->process('ssh_authorized_key.tt', $vars) || die $tt->error(), "\n";
+    }
+    close ($fh);
+    }

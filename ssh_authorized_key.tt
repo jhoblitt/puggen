@@ -1,0 +1,5 @@
+  @ssh_authorized_key { '[% comment %]':
+    key => '[% key %]',
+    type => '[% type %]',
+    user => '[% username %]',
+  }

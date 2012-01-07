@@ -1,0 +1,9 @@
+  @user { '[% name %]':
+    uid         => [% uid %],
+    gid         => [% gid %],
+    comment     => '[% gecos %]',
+    home        => '[% dir %]',
+    managehome  => true,
+    password    => '[% passwd %]',
+    shell       => '[% shell %],
+  }
