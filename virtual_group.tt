@@ -1,0 +1,16 @@
+  @group { '[% group_name %]':
+    name    => '[% group_name %]',
+    gid     => [% gid %],
+    members => [
+[%- first_pass = 0 -%]
+[% FOREACH user = members -%]
+[% IF first_pass == 0 -%]
+'[% user -%]'
+[%- ELSE -%]
+, '[% user -%]'
+[%- END -%]
+[% first_pass = 1 -%]
+[% END -%]
+],
+  }
+

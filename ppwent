@@ -1,16 +1,79 @@
 #!/usr/bin/env perl
 
 use User::pwent;
+use User::grent;
 use Template;
+use Digest::MD5 qw( md5_base64 );
 use Net::SSH::AuthorizedKey;
-use Getopt::Long;
+#use Getopt::Long;
 
-my $u = shift;
+#my $u = shift;
 
-sub process_user {
-    my ($user) = @_
+my $tt = Template->new({
+    INCLUDE_PATH => './',
+    INTERPOLATE  => 0,
+}) || die "$Template::ERROR\n";
+
+my $vars = {
+    class_name => 'sdm::users',
+};
+
+$tt->process('puppet_class_header.tt', $vars) || die $tt->error(), "\n";
+
+my %user_list;
+open(my $fh, shift) or die "can't open file: $!";
+foreach my $u (<$fh>) {
+    chomp $u;
+    next unless $u =~ /\S/;
+    $user_list{$u}++;
+
+    process_realize_user($u);
+}
+close($fh) or die "can't close file: $!";
+
+print "\n";
+
+# hash of lists.  hash key is gid, value is a list of usernames
+my %gid_list;
+foreach my $u (keys %user_list) {
+    process_virtual_user($u, \%gid_list);
+}
+
+# also load up the entire wheel group
+my $gr = getgrnam('wheel');
+if (defined $gr) {
+    foreach my $user (@{$gr->members}) {
+	if (defined $user_list{$user}) {
+            push @{$gid_list{$gr->gid}}, $user;
+        }
+    }
+}
+
+process_virtual_groups(\%gid_list);
+
+$tt->process('puppet_class_footer.tt', $vars) || die $tt->error(), "\n";
+
+sub process_realize_user {
+    my ($u) = @_;
+
+    my $tt = Template->new({
+        INCLUDE_PATH => './',
+        INTERPOLATE  => 1,
+    }) || die "$Template::ERROR\n";
+    my $vars = {
+        name => $u,
+    };
+
+    $tt->process('realize_user.tt', $vars) || die $tt->error(), "\n";
+}
+
+sub process_virtual_user {
+    my ($u, $gid_list) = @_;
 
     $pw = getpwnam($u) || die "No user: $u";
+
+    # store gid so we can create the virtual group types as well
+    push @{$gid_list->{$pw->gid}}, $u;
 
     use Data::Dumper;
     #print Dumper($pw);
@@ -29,23 +92,55 @@ sub process_user {
         dir     => $pw->dir,
         shell   => $pw->shell,
     };
-    $tt->process('user.tt', $vars) || die $tt->error(), "\n";
+    $tt->process('virtual_user.tt', $vars) || die $tt->error(), "\n";
 
+    my $keys = $pw->dir . "/.ssh/authorized_keys";
+
+    if (-e $keys) {
     open(my $fh, $pw->dir . "/.ssh/authorized_keys") or die "can't open file: $!";
     foreach my $line (<$fh>) {
+	next unless $line =~ /\S/;
         my $key = Net::SSH::AuthorizedKey->parse( $line );
         use Data::Dumper;
-        # print Dumper($key);
+#         print Dumper($key);
         my $comment = $key->comment;
         chomp $comment;
-        $comment  =~ tr/\s/_/;
+
+        # XXX ugly hack to work around puppets use of the ssh key 'name' a globally unique id
+        my $key_digest = md5_base64($key->key);
+        # use only the first 4 digits as the digest
+	$key_digest = substr($key_digest, 0, 4);
+        $comment = $comment . " # $u $key_digest";
+        $comment  =~ s/\s/_/g;
+        
         my $vars = {
             key => $key->key,
             type => $key->encryption,
-            username => 'jhoblitt',
+            username => $u,
             comment => $comment,
         };
         $tt->process('ssh_authorized_key.tt', $vars) || die $tt->error(), "\n";
     }
     close ($fh);
     }
+}
+
+sub process_virtual_groups {
+    my ($gid_list) = @_;
+
+#    print Dumper($gid_list);
+
+    foreach my $gid (keys %{$gid_list}) {
+	my $gr = getgrgid($gid);
+	#print Dumper($gr);
+	next unless defined $gr;
+
+        my $vars = {
+            group_name => $gr->name,
+            gid        => $gid,
+            members    => $gid_list->{$gid},
+        };
+
+        $tt->process('virtual_group.tt', $vars) || die $tt->error(), "\n";
+    }
+}

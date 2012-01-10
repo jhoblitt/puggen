@@ -1,0 +1,13 @@
+class [% class_name %] {
+  define user_setup ($ensure=present) {
+    if ($ensure == present) {
+      Group <| members == $name |> { ensure => $ensure }
+        -> User <| title == $name |> { ensure => $ensure }
+        -> Ssh_authorized_key <| user == $name |> { ensure => $ensure }
+    } else {
+      Ssh_authorized_key <| user == $name |> { ensure => $ensure }
+        -> User <| title == $name |> { ensure => $ensure }
+        -> Group <|members == $name |> { ensure => $ensure }
+    }
+  }
+
