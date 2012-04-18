@@ -1,11 +1,22 @@
 #!/usr/bin/env perl
 
+use strict;
+use warnings;
+
 use User::pwent;
 use User::grent;
 use Template;
 use Digest::MD5 qw( md5_base64 );
 use Net::SSH::AuthorizedKey;
-#use Getopt::Long;
+use Getopt::Long qw( GetOptions :config auto_help auto_version );
+use Pod::Usage qw( pod2usage );
+
+my $class_name = 'sdm::users';
+
+GetOptions(
+    'class_name|s=s'    => \$class_name,
+) || pod2usage( 2 );
+
 
 #my $u = shift;
 
@@ -15,7 +26,7 @@ my $tt = Template->new({
 }) || die "$Template::ERROR\n";
 
 my $vars = {
-    class_name => 'sdm::users',
+    class_name => $class_name,
 };
 
 $tt->process('puppet_class_header.tt', $vars) || die $tt->error(), "\n";
@@ -70,7 +81,7 @@ sub process_realize_user {
 sub process_virtual_user {
     my ($u, $gid_list) = @_;
 
-    $pw = getpwnam($u) || die "No user: $u";
+    my $pw = getpwnam($u) || die "No user: $u";
 
     # store gid so we can create the virtual group types as well
     push @{$gid_list->{$pw->gid}}, $u;
