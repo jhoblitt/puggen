@@ -1,1 +1,1 @@
-  user_setup{[% name %]:}
+  user_setup{[% name %]: ensure => absent }
