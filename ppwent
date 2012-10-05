@@ -42,7 +42,7 @@ foreach my $u (<$fh>) {
     next unless $u =~ /\S/;
     $user_list{$u}++;
 
-    process_realize_user($u);
+    process_realize_user($tt, $u);
 }
 close($fh) or die "can't close file: $!";
 
@@ -51,7 +51,7 @@ print "\n";
 # hash of lists.  hash key is gid, value is a list of usernames
 my %gid_list;
 foreach my $u (keys %user_list) {
-    process_virtual_user($u, \%gid_list);
+    process_virtual_user($tt, $u, \%gid_list);
 }
 
 # also load up the entire wheel group
@@ -64,17 +64,13 @@ if (defined $gr) {
     }
 }
 
-process_virtual_groups(\%gid_list);
+process_virtual_groups($tt, \%gid_list);
 
 $tt->process('puppet_class_footer.tt', $vars) || die $tt->error(), "\n";
 
 sub process_realize_user {
-    my ($u) = @_;
+    my ($tt, $u) = @_;
 
-    my $tt = Template->new({
-        INCLUDE_PATH => $template_path,
-        INTERPOLATE  => 1,
-    }) || die "$Template::ERROR\n";
     my $vars = {
         name => $u,
     };
@@ -83,7 +79,7 @@ sub process_realize_user {
 }
 
 sub process_virtual_user {
-    my ($u, $gid_list) = @_;
+    my ($tt, $u, $gid_list) = @_;
 
     my $pw = getpwnam($u) || die "No user: $u";
 
@@ -92,11 +88,6 @@ sub process_virtual_user {
 
     use Data::Dumper;
     #print Dumper($pw);
-
-    my $tt = Template->new({
-        INCLUDE_PATH => $template_path,
-        INTERPOLATE  => 1,
-    }) || die "$Template::ERROR\n";
 
     my $vars = {
         name    => $pw->name,
@@ -141,7 +132,7 @@ sub process_virtual_user {
 }
 
 sub process_virtual_groups {
-    my ($gid_list) = @_;
+    my ($tt, $gid_list) = @_;
 
 #    print Dumper($gid_list);
 
