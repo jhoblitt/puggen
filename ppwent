@@ -13,7 +13,7 @@ use Net::SSH::AuthorizedKey;
 use Getopt::Long qw( GetOptions :config auto_help auto_version );
 use Pod::Usage qw( pod2usage );
 
-my $class_name = 'sdm::users';
+my $class_name = 'my::users';
 
 GetOptions(
     'class_name|s=s'    => \$class_name,
