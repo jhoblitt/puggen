@@ -1,5 +1,7 @@
 #!/usr/bin/env perl
 
+# Copyright (C) 2012  Joshua Hoblitt <jhoblitt@cpan.org>
+
 use strict;
 use warnings;
 
@@ -20,8 +22,10 @@ GetOptions(
 
 #my $u = shift;
 
+my $template_path = "./templates";
+
 my $tt = Template->new({
-    INCLUDE_PATH => './',
+    INCLUDE_PATH => $template_path,
     INTERPOLATE  => 0,
 }) || die "$Template::ERROR\n";
 
@@ -68,7 +72,7 @@ sub process_realize_user {
     my ($u) = @_;
 
     my $tt = Template->new({
-        INCLUDE_PATH => './',
+        INCLUDE_PATH => $template_path,
         INTERPOLATE  => 1,
     }) || die "$Template::ERROR\n";
     my $vars = {
@@ -90,7 +94,7 @@ sub process_virtual_user {
     #print Dumper($pw);
 
     my $tt = Template->new({
-        INCLUDE_PATH => './',
+        INCLUDE_PATH => $template_path,
         INTERPOLATE  => 1,
     }) || die "$Template::ERROR\n";
 
@@ -155,3 +159,54 @@ sub process_virtual_groups {
         $tt->process('virtual_group.tt', $vars) || die $tt->error(), "\n";
     }
 }
+
+=pod
+
+=head1 NAME
+
+ppwent - generate puppet user/group resources from pwent()/grent() 
+
+=head1 SYNOPSIS
+
+    ppwent --users ./users.txt --groups ./groups.txt --class_name my::users
+
+=head1 DESCRIPTION
+
+=head1 CREDITS
+
+Just me, myself, and I.
+
+=head1 SUPPORT
+
+Please contact the author directly via e-mail.
+
+=head1 AUTHOR
+
+Joshua Hoblitt <jhoblitt@cpan.org>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2012  Joshua Hoblitt
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+The full text of the license can be found in the LICENSE file included with
+this module or in the L<perlgpl> Pod included with Perl 5.8.1 or later.
+
+=head1 SEE ALSO
+
+L<File::Integrity>, L<File::Integrity::Stat>
+
+=cut
