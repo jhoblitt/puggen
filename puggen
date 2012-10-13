@@ -193,7 +193,6 @@ sub process_virtual_user {
         foreach my $line (<$fh>) {
             next unless $line =~ /\S/;
             my $key = Net::SSH::AuthorizedKey->parse( $line );
-#         print Dumper($key);
             my $comment = $key->comment;
             chomp $comment;
 
