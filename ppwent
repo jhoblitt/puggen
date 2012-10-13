@@ -49,6 +49,9 @@ my $vars = {
     class_name => $class_name,
 };
 
+my @user_list = read_config_file($users);
+my @group_list = read_config_file($groups);
+
 my %user_info;
 # user_info:  { <username> => { pw => $pw_obj,  groups => [...] } }
 my %group_info;
@@ -56,58 +59,47 @@ my %group_info;
 
 # iterate over users and build a hash keyed by user *name* and one keyed by the
 # users primary *gid*
-{
-    open(my $fh, $users) or die "can't open file: $!";
-    foreach my $u (<$fh>) {
-        chomp $u;
-        next unless $u =~ /\S/;
-        my $pw = getpwnam($u);
-        unless (defined $pw) {
-            warn "user $u does not exist";
-            next;
-        }
-        # create per user user_info key
-        $user_info{$u}{'pw'} = $pw;
-        # create group_info entry for users primary gid
-        push @{$group_info{$pw->gid}{'members'}}, $u;
+foreach my $u (@user_list) {
+    my $pw = getpwnam($u);
+    unless (defined $pw) {
+        warn "user $u does not exist";
+        next;
     }
-    close($fh) or die "can't close file: $!";
+    # create per user user_info key
+    $user_info{$u}{'pw'} = $pw;
+    # create group_info entry for users primary gid
+    push @{$group_info{$pw->gid}{'members'}}, $u;
 }
 
 # We are building both a gid list and add to the per user groups list.  This is
 # needed because on Linux, puppet is unable to directly manage group membership
 # via the Group resource type.  User membership in groups is managed via the
 # User resource.
-{
-    open(my $fh, $groups) or die "can't open file: $!";
-    foreach my $g (<$fh>) {
-        chomp $g;
-        next unless $g =~ /\S/;
-        my $gr = getgrnam($g);
-        print Dumper($gr);
-        unless (defined $gr) {
-            warn "group $g does not exist";
-            next;
-        }
-        foreach my $u (@{$gr->members}) {
-            print "blad $u\n";
-            unless (defined $user_info{$u}) {
-               warn "user $u, member of group $g, is not being processed or does not exist" if $debug;
-               next;
-            }
-                
-            # populate the per user name group list
-            push @{$user_info{$u}{'groups'}}, $g;
-            # create a group_info entry for this group
-            push @{$group_info{$gr->gid}{'members'}}, $u;
-            #push @{$group_info{$gr->gid}}, $u;
-        }
-        $group_info{$gr->gid}->{'gr'} = $gr;
+foreach my $g (@group_list) {
+    my $gr = getgrnam($g);
+    print Dumper($gr);
+    unless (defined $gr) {
+        warn "group $g does not exist";
+        next;
     }
-    close($fh) or die "can't close file: $!";
+    foreach my $u (@{$gr->members}) {
+        print "blad $u\n";
+        unless (defined $user_info{$u}) {
+           warn "user $u, member of group $g, is not being processed or does not exist" if $debug;
+           next;
+        }
+            
+        # populate the per user name group list
+        push @{$user_info{$u}{'groups'}}, $g;
+        # create a group_info entry for this group
+        push @{$group_info{$gr->gid}{'members'}}, $u;
+        #push @{$group_info{$gr->gid}}, $u;
+    }
+    $group_info{$gr->gid}->{'gr'} = $gr;
 }
 
-    print Dumper(\%group_info);
+print Dumper(\%group_info);
+
 #
 # generate output
 #
@@ -129,7 +121,27 @@ process_virtual_groups($tt, \%group_info);
 
 $tt->process('puppet_class_footer.tt', $vars) || die $tt->error(), "\n";
 
+### END SCRIPT
 exit(0);
+
+sub read_config_file {
+    my $filename = shift;
+
+    my @list;
+    open(my $fh, $filename) or die "can't open file: $!";
+    foreach my $line (<$fh>) {
+        chomp $line;
+        # ignore blank lines
+        next unless $line =~ /\S/;
+        # skip comments
+        next if $line =~ /^\s+#/;
+
+        push @list, $line,
+    }
+    close($fh) or die "can't close file: $!";
+
+    return @list;
+}
 
 sub process_realize_user {
     my ($tt, $u) = @_;
