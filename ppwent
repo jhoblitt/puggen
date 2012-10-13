@@ -71,19 +71,22 @@ foreach my $u (@user_list) {
     push @{$group_info{$pw->gid}{'members'}}, $u;
 }
 
+if ($debug) {
+    warn "# %user_info\n";
+    warn Dumper(\%user_info);
+}
+
 # We are building both a gid list and add to the per user groups list.  This is
 # needed because on Linux, puppet is unable to directly manage group membership
 # via the Group resource type.  User membership in groups is managed via the
 # User resource.
 foreach my $g (@group_list) {
     my $gr = getgrnam($g);
-    print Dumper($gr);
     unless (defined $gr) {
         warn "group $g does not exist";
         next;
     }
     foreach my $u (@{$gr->members}) {
-        print "blad $u\n";
         unless (defined $user_info{$u}) {
            warn "user $u, member of group $g, is not being processed or does not exist" if $debug;
            next;
@@ -98,7 +101,10 @@ foreach my $g (@group_list) {
     $group_info{$gr->gid}->{'gr'} = $gr;
 }
 
-print Dumper(\%group_info);
+if ($debug) {
+    warn "# %group_info\n";
+    warn Dumper(\%group_info);
+}
 
 #
 # generate output
