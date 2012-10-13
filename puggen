@@ -191,31 +191,31 @@ sub process_virtual_user {
     my $keys = $pw->dir . "/.ssh/authorized_keys";
 
     if (-e $keys) {
-    open(my $fh, $pw->dir . "/.ssh/authorized_keys") or die "can't open file: $!";
-    foreach my $line (<$fh>) {
-	next unless $line =~ /\S/;
-        my $key = Net::SSH::AuthorizedKey->parse( $line );
-        use Data::Dumper;
+        open(my $fh, $pw->dir . "/.ssh/authorized_keys") or die "can't open file: $!";
+        foreach my $line (<$fh>) {
+            next unless $line =~ /\S/;
+            my $key = Net::SSH::AuthorizedKey->parse( $line );
+            use Data::Dumper;
 #         print Dumper($key);
-        my $comment = $key->comment;
-        chomp $comment;
+            my $comment = $key->comment;
+            chomp $comment;
 
-        # XXX ugly hack to work around puppets use of the ssh key 'name' a globally unique id
-        my $key_digest = md5_base64($key->key);
-        # use only the first 4 digits as the digest
-	$key_digest = substr($key_digest, 0, 4);
-        $comment = $comment . " # $pw->name $key_digest";
-        $comment  =~ s/\s/_/g;
-        
-        my $vars = {
-            key => $key->key,
-            type => $key->encryption,
-            username => $pw->name,
-            comment => $comment,
-        };
-        $tt->process('ssh_authorized_key.tt', $vars) || die $tt->error(), "\n";
-    }
-    close ($fh);
+            # XXX ugly hack to work around puppets use of the ssh key 'name' a globally unique id
+            my $key_digest = md5_base64($key->key);
+            # use only the first 4 digits as the digest
+            $key_digest = substr($key_digest, 0, 4);
+            $comment = $comment . " # $pw->name $key_digest";
+            $comment  =~ s/\s/_/g;
+            
+            my $vars = {
+                key => $key->key,
+                type => $key->encryption,
+                username => $pw->name,
+                comment => $comment,
+            };
+            $tt->process('ssh_authorized_key.tt', $vars) || die $tt->error(), "\n";
+        }
+        close ($fh);
     }
 }
 
