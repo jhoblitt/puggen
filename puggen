@@ -174,8 +174,6 @@ sub process_virtual_user {
 
     my $pw = $u_hash->{'pw'};
 
-    #print Dumper($pw);
-
     my $vars = {
         name    => $pw->name,
         passwd  => $pw->passwd,
@@ -222,12 +220,8 @@ sub process_virtual_user {
 sub process_virtual_groups {
     my ($tt, $group_info) = @_;
 
-    #print Dumper($group_info);
-
     foreach my $gid (keys %{$group_info}) {
-        #my $gr = getgrgid($gid);
         my $gr = $group_info->{$gid}->{'gr'};
-        #print Dumper($gr);
         next unless defined $gr;
 
         my $vars = {
