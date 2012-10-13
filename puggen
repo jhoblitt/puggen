@@ -204,7 +204,8 @@ sub process_virtual_user {
             my $key_digest = md5_base64($key->key);
             # use only the first 4 digits as the digest
             $key_digest = substr($key_digest, 0, 4);
-            $comment = $comment . " # $pw->name $key_digest";
+            my $name = $pw->name;
+            $comment = $comment . " # $name $key_digest";
             $comment  =~ s/\s/_/g;
             
             my $vars = {
