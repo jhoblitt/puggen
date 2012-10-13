@@ -244,11 +244,11 @@ sub process_virtual_groups {
 
 =head1 NAME
 
-ppwent - generate puppet user/group resources from pwent()/grent() 
+puggen - generate puppet user/group resources from system database
 
 =head1 SYNOPSIS
 
-    ppwent --users <file name> --groups <file name> [--class_name my::users]
+    puggen --users <file name> --groups <file name> [--class_name my::users]
 
 =head1 DESCRIPTION
 
