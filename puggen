@@ -252,6 +252,36 @@ puggen - generate puppet user/group resources from system database
 
 =head1 DESCRIPTION
 
+This utility generates the text of a puppet class containing virtual user,
+group, and ssh_authorized_key resources that are unrealized.  It is
+intended to be used as a base class for other classes which then realize
+these resources.  A defined type, user_setup, is provided to help realize
+all of the resources associated with a user.  All users have a user_setup
+type declared in the generated base class with ensure => absent set such
+that if a resources are realized for a user in a subclass and then
+user_setup declaration is subsequently removed, so are all of the
+resources associated with that user.
+
+    class my::users::dev inherits my::users {
+      User_setup[jrandom]{ ensure => present }
+
+      # my::users does not have this user included in the wheel group
+      User['jrandom']{
+          groups => ['wheel'],
+      }
+
+    }
+
+=head1 EXAMPLE
+
+    sudo ./puggen --users ../users.txt --groups ../groups.txt > users.pp
+
+=head1 GOTCHAS
+
+This program *must* be run as root in order to gather the hashed password
+entries for the user resources.  This is very likely also the case for
+gathering ssh public keys out of user directories.
+
 =head1 CREDITS
 
 Just me, myself, and I.
@@ -287,6 +317,6 @@ this module or in the L<perlgpl> Pod included with Perl 5.8.1 or later.
 
 =head1 SEE ALSO
 
-L<File::Integrity>, L<File::Integrity::Stat>
+L<User::pwent>, L<User::grent>, L<Template>, L<Net::SSH::AuthorizedKey>
 
 =cut
