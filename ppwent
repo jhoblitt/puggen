@@ -57,18 +57,25 @@ my %user_info;
 my %group_info;
 # group_info: { <gid> => { gr => $gr_obj, users => [$users] }
 
-# iterate over users and build a hash keyed by user *name* and one keyed by the
-# users primary *gid*
+# iterate over the users list and build a hash keyed by user *name* and one
+# keyed by the users primary *gid*
 foreach my $u (@user_list) {
     my $pw = getpwnam($u);
     unless (defined $pw) {
         warn "user $u does not exist";
         next;
     }
+    
     # create per user user_info key
     $user_info{$u}{'pw'} = $pw;
-    # create group_info entry for users primary gid
-    push @{$group_info{$pw->gid}{'members'}}, $u;
+
+    # create group_info entry for user's primary gid so that the group resource
+    # will be generated.
+    # we don't need to add the user the members list since it's the primary gid
+    # and we don't need the user name to appear to the /etc/group file
+    unless (exists $group_info{$pw->gid}) {
+        $group_info{$pw->gid}{'gr'} = getgrgid($pw->gid);
+    }
 }
 
 if ($debug) {
@@ -76,16 +83,20 @@ if ($debug) {
     warn Dumper(\%user_info);
 }
 
-# We are building both a gid list and add to the per user groups list.  This is
-# needed because on Linux, puppet is unable to directly manage group membership
-# via the Group resource type.  User membership in groups is managed via the
-# User resource.
+# We are building both a gid list and adding to the per user groups list.  This
+# is needed because on Linux, puppet is unable to directly manage group
+# membership via the Group resource type.  User membership in groups is managed
+# via the User resource.
 foreach my $g (@group_list) {
     my $gr = getgrnam($g);
     unless (defined $gr) {
         warn "group $g does not exist";
         next;
     }
+    $group_info{$gr->gid}{'gr'} = $gr;
+
+    # check to see if each user listed as a group member is having a User
+    # resource bcreated for it.
     foreach my $u (@{$gr->members}) {
         unless (defined $user_info{$u}) {
            warn "user $u, member of group $g, is not being processed or does not exist" if $debug;
@@ -94,11 +105,10 @@ foreach my $g (@group_list) {
             
         # populate the per user name group list
         push @{$user_info{$u}{'groups'}}, $g;
+
         # create a group_info entry for this group
         push @{$group_info{$gr->gid}{'members'}}, $u;
-        #push @{$group_info{$gr->gid}}, $u;
     }
-    $group_info{$gr->gid}->{'gr'} = $gr;
 }
 
 if ($debug) {
@@ -118,7 +128,6 @@ foreach my $u (keys %user_info) {
 
 print "\n";
 
-# hash of lists.  hash key is gid, value is a list of usernames
 foreach my $u (keys %user_info) {
     process_virtual_user($tt, $user_info{$u});
 }
