@@ -12,6 +12,7 @@ use Digest::MD5 qw( md5_base64 );
 use Net::SSH::AuthorizedKey;
 use Getopt::Long qw( GetOptions :config auto_help auto_version );
 use Pod::Usage qw( pod2usage );
+use Data::Dumper;
 
 my $class_name = 'my::users';
 my $users;
@@ -173,7 +174,6 @@ sub process_virtual_user {
 
     my $pw = $u_hash->{'pw'};
 
-    use Data::Dumper;
     #print Dumper($pw);
 
     my $vars = {
@@ -195,7 +195,6 @@ sub process_virtual_user {
         foreach my $line (<$fh>) {
             next unless $line =~ /\S/;
             my $key = Net::SSH::AuthorizedKey->parse( $line );
-            use Data::Dumper;
 #         print Dumper($key);
             my $comment = $key->comment;
             chomp $comment;
