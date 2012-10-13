@@ -197,7 +197,8 @@ sub process_virtual_user {
             my $comment = $key->comment;
             chomp $comment;
 
-            # XXX ugly hack to work around puppets use of the ssh key 'name' a globally unique id
+            # XXX ugly hack to work around puppets use of the ssh key 'name' a
+            # globally unique id
             my $key_digest = md5_base64($key->key);
             # use only the first 4 digits as the digest
             $key_digest = substr($key_digest, 0, 4);
