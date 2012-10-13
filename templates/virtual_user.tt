@@ -6,5 +6,8 @@
     managehome  => true,
     password    => '[% passwd %]',
     shell       => '[% shell %]',
+[% IF groups -%]
+    groups      => ['[% groups.join('\', \'') %]'],
+[% END -%]
   }
 
