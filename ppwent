@@ -14,13 +14,29 @@ use Getopt::Long qw( GetOptions :config auto_help auto_version );
 use Pod::Usage qw( pod2usage );
 
 my $class_name = 'my::users';
+my $users;
+my $groups;
+my $debug;
 
 GetOptions(
-    'class_name|s=s'    => \$class_name,
+    'class_name|c=s'    => \$class_name,
+    'users|u=s'         => \$users,
+    'groups|g=s'        => \$groups,
+    'debug|d'           => \$debug,
 ) || pod2usage( 2 );
 
+pod2usage(-msg => "required option(s): --users <file name> --groups <file name>", -exitval => 3)
+    unless defined $users and defined $groups;
+pod2usage(-msg => "unknown argument(s): @ARGV", -exitval => 4) if scalar @ARGV;
+pod2usage(-msg => "--users $users: file does not exist", -exitval => 5)
+    unless -e $users;
+pod2usage(-msg => "--users $users: file is not a plain file", -exitval => 6)
+    unless -f $users;
 
-#my $u = shift;
+pod2usage(-msg => "--groups $groups: file does not exist", -exitval => 7)
+    unless -e $groups;
+pod2usage(-msg => "--groups $groups: file is not a plain file", -exitval => 8)
+    unless -f $groups;
 
 my $template_path = "./templates";
 
@@ -33,40 +49,87 @@ my $vars = {
     class_name => $class_name,
 };
 
+my %user_list;
+# user_list:  { <username> => { pw => $pw_obj,  groups => [...] } }
+my %gid_list;
+# gid_list: { <gid> => { gr => $gr_obj, users => [$users] }
+
+# iterate over users and build a hash keyed by user *name* and one keyed by the
+# users primary *gid*
+{
+    open(my $fh, $users) or die "can't open file: $!";
+    foreach my $u (<$fh>) {
+        chomp $u;
+        next unless $u =~ /\S/;
+        my $pw = getpwnam($u);
+        unless (defined $pw) {
+            warn "user $u does not exist";
+            next;
+        }
+        # create per user user_list key
+        $user_list{$u}{'pw'} = $pw;
+        # create gid_list entry for users primary gid
+        push @{$gid_list{$pw->gid}{'members'}}, $u;
+    }
+    close($fh) or die "can't close file: $!";
+}
+
+# We are building both a gid list and add to the per user groups list.  This is
+# needed because on Linux, puppet is unable to directly manage group membership
+# via the Group resource type.  User membership in groups is managed via the
+# User resource.
+{
+    open(my $fh, $groups) or die "can't open file: $!";
+    foreach my $g (<$fh>) {
+        chomp $g;
+        next unless $g =~ /\S/;
+        my $gr = getgrnam($g);
+        print Dumper($gr);
+        unless (defined $gr) {
+            warn "group $g does not exist";
+            next;
+        }
+        foreach my $u (@{$gr->members}) {
+            print "blad $u\n";
+            unless (defined $user_list{$u}) {
+               warn "user $u, member of group $g, is not being processed or does not exist" if $debug;
+               next;
+            }
+                
+            # populate the per user name group list
+            push @{$user_list{$u}{'groups'}}, $g;
+            # create a gid_list entry for this group
+            push @{$gid_list{$gr->gid}{'members'}}, $u;
+            #push @{$gid_list{$gr->gid}}, $u;
+        }
+        $gid_list{$gr->gid}->{'gr'} = $gr;
+    }
+    close($fh) or die "can't close file: $!";
+}
+
+    print Dumper(\%gid_list);
+#
+# generate output
+#
+
 $tt->process('puppet_class_header.tt', $vars) || die $tt->error(), "\n";
 
-my %user_list;
-open(my $fh, shift) or die "can't open file: $!";
-foreach my $u (<$fh>) {
-    chomp $u;
-    next unless $u =~ /\S/;
-    $user_list{$u}++;
-
+foreach my $u (keys %user_list) {
     process_realize_user($tt, $u);
 }
-close($fh) or die "can't close file: $!";
 
 print "\n";
 
 # hash of lists.  hash key is gid, value is a list of usernames
-my %gid_list;
 foreach my $u (keys %user_list) {
-    process_virtual_user($tt, $u, \%gid_list);
-}
-
-# also load up the entire wheel group
-my $gr = getgrnam('wheel');
-if (defined $gr) {
-    foreach my $user (@{$gr->members}) {
-	if (defined $user_list{$user}) {
-            push @{$gid_list{$gr->gid}}, $user;
-        }
-    }
+    process_virtual_user($tt, $user_list{$u});
 }
 
 process_virtual_groups($tt, \%gid_list);
 
 $tt->process('puppet_class_footer.tt', $vars) || die $tt->error(), "\n";
+
+exit(0);
 
 sub process_realize_user {
     my ($tt, $u) = @_;
@@ -79,12 +142,9 @@ sub process_realize_user {
 }
 
 sub process_virtual_user {
-    my ($tt, $u, $gid_list) = @_;
+    my ($tt, $u_hash) = @_;
 
-    my $pw = getpwnam($u) || die "No user: $u";
-
-    # store gid so we can create the virtual group types as well
-    push @{$gid_list->{$pw->gid}}, $u;
+    my $pw = $u_hash->{'pw'};
 
     use Data::Dumper;
     #print Dumper($pw);
@@ -97,6 +157,7 @@ sub process_virtual_user {
         gecos   => $pw->gecos,
         dir     => $pw->dir,
         shell   => $pw->shell,
+        groups  => $u_hash->{'groups'},
     };
     $tt->process('virtual_user.tt', $vars) || die $tt->error(), "\n";
 
@@ -116,13 +177,13 @@ sub process_virtual_user {
         my $key_digest = md5_base64($key->key);
         # use only the first 4 digits as the digest
 	$key_digest = substr($key_digest, 0, 4);
-        $comment = $comment . " # $u $key_digest";
+        $comment = $comment . " # $pw->name $key_digest";
         $comment  =~ s/\s/_/g;
         
         my $vars = {
             key => $key->key,
             type => $key->encryption,
-            username => $u,
+            username => $pw->name,
             comment => $comment,
         };
         $tt->process('ssh_authorized_key.tt', $vars) || die $tt->error(), "\n";
@@ -134,17 +195,18 @@ sub process_virtual_user {
 sub process_virtual_groups {
     my ($tt, $gid_list) = @_;
 
-#    print Dumper($gid_list);
+    #print Dumper($gid_list);
 
     foreach my $gid (keys %{$gid_list}) {
-	my $gr = getgrgid($gid);
-	#print Dumper($gr);
-	next unless defined $gr;
+        #my $gr = getgrgid($gid);
+        my $gr = $gid_list->{$gid}->{'gr'};
+        #print Dumper($gr);
+        next unless defined $gr;
 
         my $vars = {
             group_name => $gr->name,
             gid        => $gid,
-            members    => $gid_list->{$gid},
+            members    => $gid_list->{$gid}{'members'},
         };
 
         $tt->process('virtual_group.tt', $vars) || die $tt->error(), "\n";
@@ -159,7 +221,7 @@ ppwent - generate puppet user/group resources from pwent()/grent()
 
 =head1 SYNOPSIS
 
-    ppwent --users ./users.txt --groups ./groups.txt --class_name my::users
+    ppwent --users <file name> --groups <file name> [--class_name my::users]
 
 =head1 DESCRIPTION
 
